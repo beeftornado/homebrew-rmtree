@@ -46,7 +46,7 @@ You can install `brew rmtree` in two ways.
 1. Tap this repository and install via `brew` itself.
 
     ```
-    $ brew tap beeftornado/homebrew-rmtree && brew install brew-rmtree
+    $ brew tap beeftornado/rmtree && brew install beeftornado/rmtree/brew-rmtree
     ```
 
 1. Install manually.
