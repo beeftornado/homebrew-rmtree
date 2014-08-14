@@ -39,6 +39,11 @@ module BrewRmtree
 
     if not ARGV.force?
       ARGV.named.each do |keg_name|
+
+        # Remove old versions of keg
+        puts bash "brew cleanup #{keg_name}"
+
+        # Remove current keg
         puts bash "brew uninstall #{keg_name}"
 
         deps = bash "join <(brew leaves) <(brew deps #{keg_name})"
