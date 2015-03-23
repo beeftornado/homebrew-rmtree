@@ -9,4 +9,8 @@ class BrewRmtree < Formula
     bin.install "brew-rmtree.rb"
     (bin + "brew-rmtree.rb").chmod 0755
   end
+
+  test do
+    system "brew", "rmtree", "--help"
+  end
 end
