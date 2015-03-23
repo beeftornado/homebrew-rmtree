@@ -29,61 +29,67 @@ module BrewRmtree
     return %x! bash -c #{escaped_command} !
   end
 
-  def rmtree
+  def remove_keg(keg_name)
+    # Remove old versions of keg
+    puts bash "brew cleanup #{keg_name}"
+
+    # Remove current keg
+    puts bash "brew uninstall #{keg_name}"
+  end
+
+  def deps(keg_name)
+    deps = bash "join <(brew leaves) <(brew deps #{keg_name})"
+    deps.split("\n")
+  end
+
+  def reverse_deps(keg_name)
+    reverse_deps = bash "brew uses --installed #{keg_name}"
+    reverse_deps.split("\n")
+  end
+
+  def rmtree(keg_name)
+    # Check if anything currently installed uses the keg
+    reverse_deps = reverse_deps(keg_name)
+
+    if reverse_deps.length > 0
+      puts "Not removing #{keg_name} because other installed kegs depend on it:"
+      puts reverse_deps.join("\n")
+    else
+      # Nothing claims to depend on it
+      puts "Removing #{keg_name}..."
+      remove_keg(keg_name)
+
+      deps = deps(keg_name)
+      if deps.length > 0
+        puts "Found lingering dependencies:"
+        puts deps.join("\n")
+
+        deps.each do |dep|
+          puts "Removing dependency #{dep}..."
+          rmtree dep
+        end
+      else
+        puts "No dependencies left on system for #{keg_name}."
+      end
+    end
+  end
+
+  def main
     if ARGV.size < 1 or ['-h', '?', '--help'].include? ARGV.first
       puts USAGE
       exit 0
     end
 
+    if ARGV.force?
+      puts "--force is not supported."
+      exit 1
+    end
+
     raise KegUnspecifiedError if ARGV.named.empty?
 
-    if not ARGV.force?
-      ARGV.named.each do |keg_name|
-
-        # Remove old versions of keg
-        puts bash "brew cleanup #{keg_name}"
-
-        # Remove current keg
-        puts bash "brew uninstall #{keg_name}"
-
-        deps = bash "join <(brew leaves) <(brew deps #{keg_name})"
-
-        if deps.length > 0
-          puts "Found lingering dependencies"
-          puts deps.chomp
-
-          deps = deps.split("\n")
-
-          deps.each do |dep|
-            dep = dep.chomp
-
-            if !dep.empty?
-              # Check if anything currently installed uses the dependency
-              dep_deps = bash "brew uses --installed #{dep}"
-              dep_deps = dep_deps.chomp
-
-              if dep_deps.length > 0
-                puts "Not removing dependency #{dep} because other installed packages depend on it:"
-                puts dep_deps
-              else
-                # Nothing claims to depend on it
-                puts "Removing dependency #{dep}..."
-                puts bash "brew rmtree #{dep}"
-              end
-            end
-          end
-        else
-          puts "No dependencies left on system for #{keg_name}."
-        end
-      end
-    else
-      puts "--force is not supported."
-    end
-  rescue MultipleVersionsInstalledError => e
-    ofail e
-    puts "Use `brew rmtree --force #{e.name}` to remove all versions."
+    ARGV.named.each { |keg_name| rmtree keg_name }
   end
 end
 
-BrewRmtree.rmtree
+BrewRmtree.main
 exit 0
