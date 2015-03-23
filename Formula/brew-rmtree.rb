@@ -1,5 +1,3 @@
-require "formula"
-
 class BrewRmtree < Formula
   homepage "https://github.com/beeftornado/homebrew-rmtree"
   url "https://github.com/beeftornado/homebrew-rmtree.git"
