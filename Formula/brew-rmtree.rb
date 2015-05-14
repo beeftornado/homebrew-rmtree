@@ -5,6 +5,8 @@ class BrewRmtree < Formula
   url 'git://github.com/beeftornado/homebrew-rmtree.git'
   version '1.1'
 
+  head "https://github.com/beeftornado/homebrew-rmtree.git"
+
   skip_clean 'bin'
 
   def install
