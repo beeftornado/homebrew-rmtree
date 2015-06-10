@@ -1,7 +1,7 @@
 class BrewRmtree < Formula
   homepage "https://github.com/beeftornado/homebrew-rmtree"
-  url "https://github.com/beeftornado/homebrew-rmtree.git", :tag => "1.2"
-  version "1.2"
+  url "https://github.com/beeftornado/homebrew-rmtree.git", :tag => "1.3"
+  version "1.3"
 
   head "https://github.com/beeftornado/homebrew-rmtree.git"
 
