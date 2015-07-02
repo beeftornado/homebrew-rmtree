@@ -33,8 +33,14 @@ module BrewRmtree
               be removed.
     --ignore  Ignore some dependencies from removal. This option must appear after
               the formulae to remove.
+    --dry-run Does a dry-run. Goes through the whole process without actually
+              removing anything. This gives you a chance to observe what packages
+              would be removed and a chance to ignore them when you do it for real.
 
   EOS
+
+  @dry_run = false
+
 
   module_function
 
@@ -44,11 +50,13 @@ module BrewRmtree
   end
 
   def remove_keg(keg_name)
-    # Remove old versions of keg
-    puts bash "brew cleanup #{keg_name}"
+    if !@dry_run
+      # Remove old versions of keg
+      puts bash "brew cleanup #{keg_name}"
 
-    # Remove current keg
-    puts bash "brew uninstall #{keg_name}"
+      # Remove current keg
+      puts bash "brew uninstall #{keg_name}"
+    end
   end
 
   def deps(keg_name)
@@ -107,12 +115,17 @@ module BrewRmtree
     raise KegUnspecifiedError if ARGV.named.empty?
 
     loop { case ARGV[0]
+        when '--dry-run' then ARGV.shift; @dry_run = true
         when '--force' then  ARGV.shift; force = true
         when '--ignore' then  ARGV.shift; ignored_kegs.push(*ARGV); break
         when /^-/ then  puts "Unknown option: #{ARGV.shift.inspect}"; puts USAGE
         when /^[^-]/ then rm_kegs.push(ARGV.shift)
         else break
     end; }
+
+    if @dry_run
+      puts "** DRY RUN **"; puts ""
+    end
 
     rm_kegs.each { |keg_name| rmtree keg_name, force, ignored_kegs }
   end
