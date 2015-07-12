@@ -33,11 +33,23 @@ module BrewRmtree
               be removed.
     --ignore  Ignore some dependencies from removal. This option must appear after
               the formulae to remove.
-    --dry-run Does a dry-run. Goes through the whole process without actually
-              removing anything. This gives you a chance to observe what packages
-              would be removed and a chance to ignore them when you do it for real.
 
   EOS
+
+  # TODO: dry-run completely broken. Much more complicated than what I anticipated.
+  # => Since none of the formulae get removed, it causes subsequent commands to 
+  # => return inaccurate output. For dry-runs, a dependency graph has to be generated
+  # => before starting the removal code so it can know ahead of time which users
+  # => of a keg are going to be removed later and shouldn't be counted.
+  # => This problem also exists for non-dry-runs, so it will need to be addressed soon.
+  # => If there is a circular dependency, then they won't get removed even if it is safe to,
+  # => because it will always looks like something is using that keg. Interesting issue.
+  # => But these are the types of problems that come up with simple scripts for complicated
+  # => problems.
+
+  # --dry-run Does a dry-run. Goes through the whole process without actually
+  #             removing anything. This gives you a chance to observe what packages
+  #             would be removed and a chance to ignore them when you do it for real.
 
   @dry_run = false
 
@@ -60,13 +72,23 @@ module BrewRmtree
   end
 
   def deps(keg_name)
-    deps = bash "join <(brew leaves) <(brew deps #{keg_name})"
+    if !@dry_run
+      deps = bash "join <(sort <(brew leaves)) <(sort <(brew deps #{keg_name}))"
+    else
+      deps = bash "sort <(brew deps --installed #{keg_name})"
+    end
     deps.split("\n")
   end
 
   def reverse_deps(keg_name)
     reverse_deps = bash "brew uses --installed #{keg_name}"
-    reverse_deps.split("\n")
+    reverse_deps = reverse_deps.split("\n")
+    if @dry_run
+      # Because none of the kegs have actually been removed they will still show up as users
+      # TODO: Rewrite. The entire list of kegs to be removed needs to be subtracted out
+      reverse_deps = reverse_deps.reject { |x| x.end_with?() }
+    end
+    reverse_deps
   end
 
   def rmtree(keg_name, force=false, ignored_kegs=[])
@@ -76,8 +98,7 @@ module BrewRmtree
     if !force and reverse_deps.length > 0
       puts "Not removing #{keg_name} because other installed kegs depend on it:"
       puts reverse_deps.join("\n")
-      puts "\n"
-      puts "If you want to override this behavior, use 'brew rmtree --force'"
+      puts ""
     else
       # Nothing claims to depend on it
       if ignored_kegs.include? keg_name
@@ -124,7 +145,11 @@ module BrewRmtree
     end; }
 
     if @dry_run
-      puts "** DRY RUN **"; puts ""
+      #puts "** DRY RUN **"; puts ""
+      puts "ERROR: dry-run currently in development"
+      puts ""
+      puts USAGE
+      exit 0
     end
 
     rm_kegs.each { |keg_name| rmtree keg_name, force, ignored_kegs }
