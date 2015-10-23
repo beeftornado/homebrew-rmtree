@@ -192,7 +192,9 @@ module BrewRmtree
   end
 
   def removable_in_tree(tree)
-    tree.select {|dep,used_by_set| can_remove(used_by_set)}
+    tree.select {|dep,used_by_set| can_remove(used_by_set)} \
+        .map {|dep,_| dep} \
+        .sort
   end
 
   def unremovable_in_tree(tree)
@@ -205,7 +207,9 @@ module BrewRmtree
     puts ""
     puts "Can safely be removed"
     puts "----------------------"
-    puts will_remove.map { |dep,_| dep }.sort.join("\n")
+    will_remove.each_with_index do |dep,i|
+      printf "%2d %s\n", i+1, dep
+    end
   end
 
   def describe_build_tree_wont_remove(tree)
@@ -223,23 +227,21 @@ module BrewRmtree
     describe_build_tree_wont_remove(tree)
   end
 
-  # Simple prompt helper
-  def should_proceed(prompt)
-    input = [(print "#{prompt}[y/N]: "), gets.rstrip][1]
-    if ['y', 'yes'].include?(input.downcase)
-      return true
-    end
-    return false
-  end
-
-  def should_proceed_or_quit(prompt)
-    puts ""
-    unless should_proceed(prompt)
-      puts ""
-      onoe "User quit"
+  def get_should_remove_kegs(candidates)
+    print "Remove these packages? ('m' for manual selection) [y/m/N]: "
+    input = gets.rstrip
+    case input
+    when 'y', 'yes'
+      return candidates
+    when 'm'
+      input = print "Enter space-separated list of indices of packages to remove: "
+      input = gets.strip
+      indices = input.split.map {|i| i.to_i - 1}
+      return candidates.select.with_index {|_,i| indices.include? i}
+    else
+      onoe "Aborting..."
       exit 0
     end
-    return true
   end
 
   # Will mark any children and parents of dep as unremovable if dep is unremovable
@@ -344,13 +346,14 @@ module BrewRmtree
     # Confirm with user packages that can and will be removed
     describe_build_tree_will_remove(wont_remove_because)
 
-    should_proceed_or_quit("Proceed?")
+    candidates = removable_in_tree(wont_remove_because)
+    to_remove = get_should_remove_kegs(candidates)
 
-    ohai "Cleaning up packages safe to remove"
+    ohai "Cleaning up #{to_remove.size} packages safe to remove"
 
     # Remove packages
     remove_keg(keg_name)
-    removable_in_tree(wont_remove_because).map { |d,_| remove_keg(d) }
+    to_remove.each {|d| remove_keg(d)}
   end
 
   def main
