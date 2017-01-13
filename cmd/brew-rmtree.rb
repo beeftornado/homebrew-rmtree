@@ -371,7 +371,7 @@ module BrewRmtree
         when '--dry-run' then ARGV.shift; @dry_run = true
         when '--force' then  ARGV.shift; force = true
         when '--ignore' then  ARGV.shift; ignored_kegs.push(*ARGV); break
-        when /^-/ then  puts "Unknown option: #{ARGV.shift.inspect}"; puts USAGE
+        when /^-/ then  puts "Unknown option: #{ARGV.shift.inspect}"; puts USAGE; exit 1
         when /^[^-]/ then rm_kegs.push(ARGV.shift)
         else break
     end; }
