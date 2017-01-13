@@ -25,19 +25,10 @@ depends on it (except you). See Usage to ignore certain formula from being remov
 
 ## Installation
 
-You can install `brew rmtree` in two ways.
-
-1. Tap this repository and install via `brew` itself.
+Tap this repository and install via `brew` itself.
 
     ```
     $ brew tap beeftornado/rmtree && brew install beeftornado/rmtree/brew-rmtree
-    ```
-
-1. Install manually.
-
-    ```
-    $ git clone https://github.com/beeftornado/homebrew-rmtree.git && cd homebrew-rmtree
-    $ mv brew-rmtree.rb /usr/local/bin/ && chmod 0755 /usr/local/bin/brew-rmtree.rb
     ```
 
 Once you've installed via either method, you can use the command as
