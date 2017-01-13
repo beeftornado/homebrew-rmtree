@@ -27,12 +27,11 @@ depends on it (except you). See Usage to ignore certain formula from being remov
 
 Tap this repository and install via `brew` itself.
 
-    ```
-    $ brew tap beeftornado/rmtree && brew install beeftornado/rmtree/brew-rmtree
-    ```
+```
+$ brew tap beeftornado/rmtree
+```
 
-Once you've installed via either method, you can use the command as
-described above.
+Once you've tapped it, you can use the command as described above.
 
 ## Usage
 
