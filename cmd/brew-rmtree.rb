@@ -109,7 +109,7 @@ module BrewRmtree
     puts bash "brew cleanup #{keg_name}"
 
     # Remove current keg
-    puts bash "brew uninstall #{keg_name}"
+    puts bash "brew uninstall --ignore-dependencies #{keg_name}"
   end
 
   # A list of dependencies of keg_name that are still installed after removal
