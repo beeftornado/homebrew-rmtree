@@ -326,8 +326,8 @@ module BrewRmtree
       end
     end
 
-    # Check if the formula is installed
-    unless as_formula(keg_name).installed?
+    # Check if the formula is installed (outdated implies installed)
+    unless as_formula(keg_name).installed? || as_formula(keg_name).outdated?
       onoe "#{keg_name} is not currently installed"
       return
     end
