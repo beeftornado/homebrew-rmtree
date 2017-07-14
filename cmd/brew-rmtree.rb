@@ -1,3 +1,40 @@
+#:
+#:  * `rmtree` [`--force`] [`--dry-run`] [`--quiet`] formula1 [formula2] [formula3]... [`--ignore` formulaX]
+#:
+#:    Remove a formula entirely, including all of its dependencies,
+#:    unless of course, they are used by another formula.
+#:
+#:    Warning:
+#:
+#:      Not all formulae declare their dependencies and therefore this command may end
+#:      up removing something you still need. It should be used with caution.
+#:
+#:    With `--force`, you can override the dependency check for the top-level formula you
+#:    are trying to remove. If you try to remove 'ruby' for example, you most likely will
+#:    not be able to do this because other fomulae specify this as a dependency. This
+#:    option will let you remove 'ruby'. This will NOT bypass dependency checks for the
+#:    formula's children. If 'ruby' depends on 'git', then 'git' will still not be removed.
+#:
+#:    With `--ignore`, you can ignore some dependencies from being removed. This option
+#:    must come after the formulae to remove.
+#:
+#:    You can use `--dry-run` to see what would be removed without actually removing
+#:    anything.
+#:
+#:    `--quiet` will hide output.
+#:
+#:    `brew rmtree` <formula>
+#:    Removes <formula> and its dependencies.
+#:
+#:    `brew rmtree` <formula> <formula2>
+#:    Removes <formula> and <formula2> and their dependencies.
+#:
+#:    `brew rmtree` --force <formula>
+#:    Force the removal of <formula> even if other formulae depend on it.
+#:
+#:    `brew rmtree` <formula> --ignore <formula2>
+#:    Remove <formula>, but don't remove it's dependency of <formula2>
+
 require 'keg'
 require 'formula'
 require 'shellwords'
@@ -8,47 +45,9 @@ require 'cmd/deps'
 
 module BrewRmtree
 
-  USAGE = <<-EOS.undent
-  DESCRIPTION
-    `rmtree` allows you to remove a formula entirely, including all of its dependencies,
-    unless of course, they are used by another formula.
-
-    Warning:
-
-      Not all formulae declare their dependencies and therefore this command may end up
-      removing something you still need. It should be used with caution.
-
-  USAGE
-    brew rmtree [--force] [--dry-run] [--quiet] formula1 [formula2] [formula3]... [--ignore formulaX]
-
-    Examples:
-
-      brew rmtree gcc44 gcc48    # Removes 'gcc44' and 'gcc48' and their dependencies
-      brew rmtree --force python # Force the removal of a package even if other formulae depend on it
-      brew rmtree meld --ignore python  # Remove meld, but don't remove its dependency of python
-
-  OPTIONS
-    --force   Overrides the dependency check for just the top-level formula you
-              are trying to remove. If you try to remove 'ruby' for example,
-              you most likely will not be able to do this because other fomulae
-              specify this as a dependency. This option will let you remove
-              'ruby'. This will NOT bypass dependency checks for the formula's
-              children. If 'ruby' depends on 'git', then 'git' will still not
-              be removed.
-    --ignore  Ignore some dependencies from removal. This option must appear after
-              the formulae to remove.
-    --dry-run Does a dry-run. Goes through the whole process without actually
-              removing anything. This gives you a chance to observe what packages
-              would be removed and a chance to ignore them when you do it for real.
-    --quiet   No output
-
-  EOS
-  
-
   @dry_run = false
   @used_by_table = {}
   @dependency_table = {}
-
 
   module_function
 
@@ -201,7 +200,7 @@ module BrewRmtree
 
   def describe_build_tree_will_remove(tree)
     will_remove = removable_in_tree(tree)
-    
+
     puts ""
     puts "Can safely be removed"
     puts "----------------------"
@@ -285,7 +284,7 @@ module BrewRmtree
       # uses it, which is not also in the list of dependencies. That means it
       # isn't safe to remove.
       dep_arr.each do |dep|
-        
+
         # Set the progress text for spinner thread
         set_spinner_progress "  #{wont_remove_because.size} / #{dep_arr.length} "
 
@@ -360,8 +359,7 @@ module BrewRmtree
     quiet = false
 
     if ARGV.size < 1 or ['-h', '?', '--help'].include? ARGV.first
-      puts USAGE
-      exit 0
+      abort `brew rmtree --help`
     end
 
     raise KegUnspecifiedError if ARGV.named.empty?
@@ -371,7 +369,7 @@ module BrewRmtree
         when '--dry-run' then ARGV.shift; @dry_run = true
         when '--force' then  ARGV.shift; force = true
         when '--ignore' then  ARGV.shift; ignored_kegs.push(*ARGV); break
-        when /^-/ then  puts "Unknown option: #{ARGV.shift.inspect}"; puts USAGE; exit 1
+        when /^-/ then  onoe "Unknown option: #{ARGV.shift.inspect}"; abort `brew rmtree --help`
         when /^[^-]/ then rm_kegs.push(ARGV.shift)
         else break
     end; }
@@ -387,7 +385,7 @@ module BrewRmtree
 
     # Convert ignored kegs into full names
     ignored_kegs.map! { |k| as_formula(k).full_name }
-    
+
     rm_kegs.each { |keg_name| rmtree keg_name, force, ignored_kegs }
   end
 end
