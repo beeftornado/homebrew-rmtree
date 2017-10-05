@@ -156,7 +156,8 @@ module BrewRmtree
   # Gather complete list of packages used by root package
   def dependency_tree(keg_name, recursive=true)
     Homebrew.deps_for_formula(as_formula(keg_name), recursive
-      ).select(&:installed?
+      ).map{ |x| as_formula(x) }
+      .select(&:installed?
       )#.sort_by(&:name)
   end
 
@@ -167,7 +168,13 @@ module BrewRmtree
 
   # Return a formula for keg_name
   def as_formula(keg_name)
-    Formulary.factory(keg_name)
+    if keg_name.is_a? Dependency
+      return Formulary.factory(keg_name.name)
+    end
+    if keg_name.is_a? Requirement
+      return Formulary.factory(keg_name.to_dependency.name)
+    end
+    return Formulary.factory(keg_name)
   end
 
   def used_by(dep_name, del_formula)
