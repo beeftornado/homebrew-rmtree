@@ -157,6 +157,7 @@ module BrewRmtree
   def dependency_tree(keg_name, recursive=true)
     Homebrew.deps_for_formula(as_formula(keg_name), recursive
       ).map{ |x| as_formula(x) }
+      .reject{ |x| x.nil? }
       .select(&:installed?
       )#.sort_by(&:name)
   end
@@ -172,7 +173,11 @@ module BrewRmtree
       return Formulary.factory(keg_name.name)
     end
     if keg_name.is_a? Requirement
-      return Formulary.factory(keg_name.to_dependency.name)
+      if keg_name.to_dependency
+        return Formulary.factory(keg_name.to_dependency.name)
+      else
+        return nil
+      end
     end
     return Formulary.factory(keg_name)
   end
