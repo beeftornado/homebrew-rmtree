@@ -127,26 +127,65 @@ module BrewRmtree
         begin
           if recursive
             deps = f.recursive_dependencies do |dependent, dep|
-              Dependency.prune if ignores.any? { |ignore| dep.send(ignore) } && !dependent.build.with?(dep)
+              if dep.recommended?
+                Dependency.prune if ignores.include?("recommended?") || dependent.build.without?(dep)
+              elsif dep.optional?
+                Dependency.prune if !includes.include?("optional?") && !dependent.build.with?(dep)
+              elsif dep.build?
+                Dependency.prune unless includes.include?("build?")
+              end
+
+              # If a tap isn't installed, we can't find the dependencies of one
+              # its formulae, and an exception will be thrown if we try.
+              if dep.is_a?(TapDependency) && !dep.tap.installed?
+                Dependency.keep_but_prune_recursive_deps
+              end
             end
-            reqs = f.recursive_requirements do |dependent, req|
-              Requirement.prune if ignores.any? { |ignore| req.send(ignore) } && !dependent.build.with?(req)
+
+            dep_formulae = deps.flat_map do |dep|
+              begin
+                dep.to_formula
+              rescue
+                []
+              end
             end
-            deps.any? { |dep| dep.to_formula.full_name == ff.full_name rescue dep.name == ff.name } ||
-              reqs.any? { |req| req.name == ff.name || [ff.name, ff.full_name].include?(req.default_formula) }
+
+            reqs_by_formula = ([f] + dep_formulae).flat_map do |formula|
+              formula.requirements.map { |req| [formula, req] }
+            end
+
+            reqs_by_formula.reject! do |dependent, req|
+              if req.recommended?
+                ignores.include?("recommended?") || dependent.build.without?(req)
+              elsif req.optional?
+                !includes.include?("optional?") && !dependent.build.with?(req)
+              elsif req.build?
+                !includes.include?("build?")
+              end
+            end
+
+            reqs = reqs_by_formula.map(&:last)
           else
             deps = f.deps.reject do |dep|
-              ignores.any? { |ignore| dep.send(ignore) }
+              ignores.any? { |ignore| dep.send(ignore) } && includes.none? { |include| dep.send(include) }
             end
             reqs = f.requirements.reject do |req|
-              ignores.any? { |ignore| req.send(ignore) }
+              ignores.any? { |ignore| req.send(ignore) } && includes.none? { |include| req.send(include) }
             end
-            deps.any? { |dep| dep.to_formula.full_name == ff.full_name rescue dep.name == ff.name } ||
-              reqs.any? { |req| req.name == ff.name || [ff.name, ff.full_name].include?(req.default_formula) }
           end
+          next true if deps.any? do |dep|
+            begin
+              dep.to_formula.full_name == ff.full_name
+            rescue
+              dep.name == ff.name
+            end
+          end
+
+          reqs.any? { |req| req.name == ff.name }
         rescue FormulaUnavailableError
           # Silently ignore this case as we don't care about things used in
           # taps that aren't currently tapped.
+          next
         end
       end
     end
@@ -173,9 +212,9 @@ module BrewRmtree
       return Formulary.factory(keg_name.name)
     end
     if keg_name.is_a? Requirement
-      if keg_name.to_dependency
+      begin
         return Formulary.factory(keg_name.to_dependency.name)
-      else
+      rescue
         return nil
       end
     end
