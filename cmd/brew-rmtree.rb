@@ -275,7 +275,7 @@ module BrewRmtree
 
   # Simple prompt helper
   def should_proceed(prompt)
-    input = [(print "#{prompt}[y/N]: "), gets.rstrip][1]
+    input = [(print "#{prompt}[y/N]: "), STDIN.gets.chomp()][1]
     if ['y', 'yes'].include?(input.downcase)
       return true
     end
