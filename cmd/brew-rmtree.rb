@@ -104,7 +104,12 @@ module BrewRmtree
   end
 
   # Remove a particular keg
-  def remove_keg(keg_name)
+  def remove_keg(keg_name, dry_run)
+    if dry_run
+      puts "Would have removed #{keg_name}"
+      return
+    end
+
     # Remove old versions of keg
     puts bash "brew cleanup #{keg_name}"
 
@@ -365,6 +370,33 @@ module BrewRmtree
     return wont_remove_because
   end
 
+  def order_to_be_removed_v2(start_from, wont_remove_because)
+    # Maintain stuff we delete
+    deleted_formulae = [start_from]
+
+    # Stuff we *should* be able to delete, albeit using faulty logic from before
+    maybe_dependencies_to_delete = removable_in_tree(wont_remove_because).map { |d,_| d }
+
+    # Keep deleting things that we *think* we can delete. As we go through the list,
+    # more things should become deletable. But when no new things become deletable,
+    # then we are done. This is hacky logic v2
+    last_size = 0
+    while maybe_dependencies_to_delete.size != last_size
+      last_size = maybe_dependencies_to_delete.size
+      maybe_dependencies_to_delete.each do |dep|
+        _used_by = uses(dep, false).to_set.subtract(deleted_formulae.to_set)
+        # puts "Deleted formulae are #{deleted_formulae.inspect()}"
+        # puts "#{dep} is used by #{_used_by.inspect()}"
+        if _used_by.size == 0
+          deleted_formulae << dep
+          maybe_dependencies_to_delete.delete dep
+        end
+      end
+    end
+
+    return deleted_formulae, maybe_dependencies_to_delete
+  end
+
   def rmtree(keg_name, force=false, ignored_kegs=[])
     # Does anything use keg such that we can't remove it?
     if !force
@@ -385,22 +417,51 @@ module BrewRmtree
     # Dependency list of what can be removed, and what can't, and why
     wont_remove_because = build_tree(keg_name, ignored_kegs)
 
+    kegs_to_delete_in_order, maybe_dependencies_to_delete = order_to_be_removed_v2(keg_name, wont_remove_because)
+
     # Dry run print out more information on what will happen
     if @dry_run
-      describe_build_tree(wont_remove_because)
-      return
+      # describe_build_tree(wont_remove_because)
+
+      puts ""
+      puts "Can safely be removed"
+      puts "----------------------"
+      kegs_to_delete_in_order.each do |k|
+        puts k
+      end
+      
+      describe_build_tree_wont_remove(wont_remove_because)
+      if @dry_run
+        maybe_dependencies_to_delete.each do |dep|
+          _used_by = uses(dep, false).to_set.subtract(kegs_to_delete_in_order)
+          puts "#{dep} is used by #{_used_by.to_a.join(', ')}"
+        end
+      end
+
+      puts ""
+      puts "Order of operations"
+      puts "-------------------"
+      puts kegs_to_delete_in_order
+    else
+      # Confirm with user packages that can and will be removed
+      # describe_build_tree_will_remove(wont_remove_because)
+
+      puts ""
+      puts "Can safely be removed"
+      puts "----------------------"
+      kegs_to_delete_in_order.each do |k|
+        puts k
+      end
+
+      should_proceed_or_quit("Proceed?")
+
+      ohai "Cleaning up packages safe to remove"
     end
 
-    # Confirm with user packages that can and will be removed
-    describe_build_tree_will_remove(wont_remove_because)
-
-    should_proceed_or_quit("Proceed?")
-
-    ohai "Cleaning up packages safe to remove"
-
     # Remove packages
-    remove_keg(keg_name)
-    removable_in_tree(wont_remove_because).map { |d,_| remove_keg(d) }
+    # remove_keg(keg_name, @dry_run)
+    #removable_in_tree(wont_remove_because).map { |d,_| remove_keg(d, @dry_run) }
+    kegs_to_delete_in_order.each { |d| remove_keg(d, @dry_run) }
   end
 
   def main
