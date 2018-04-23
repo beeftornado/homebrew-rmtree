@@ -9,7 +9,7 @@ class BrewRmtree < Formula
     end
     
     def caveats
-        <<~EOS.undent
+        <<~EOS
           You can uninstall this formula, as `brew tap beeftornado/brew-rmtree` is all that's
           needed to install Rmtree and keep it up to date.
         EOS
