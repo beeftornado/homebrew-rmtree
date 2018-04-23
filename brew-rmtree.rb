@@ -3,6 +3,10 @@ class BrewRmtree < Formula
     url "https://github.com/beeftornado/homebrew-rmtree.git", :tag => "2.2.4"
   
     head "https://github.com/beeftornado/homebrew-rmtree.git"
+
+    def install
+      bin.install "cmd/brew-rmtree.rb"
+    end
     
     def caveats
         <<~EOS.undent
