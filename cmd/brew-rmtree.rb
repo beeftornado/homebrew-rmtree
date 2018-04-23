@@ -38,6 +38,7 @@
 require 'keg'
 require 'formula'
 require 'formulary'
+require 'dependencies'
 require 'shellwords'
 require 'set'
 require 'cmd/deps'
@@ -172,9 +173,14 @@ module BrewRmtree
 
             reqs = reqs_by_formula.map(&:last)
           else
+            includes, ignores = Homebrew.argv_includes_ignores(["--installed"])
             deps = f.deps.reject do |dep|
               ignores.any? { |ignore| dep.send(ignore) } && includes.none? { |include| dep.send(include) }
             end
+            # deps.reject! do |dep|
+            #   # Exclude build dependencies or not required and can be built without it
+            #   dep.build? || (!dep.required? && as_formula(dep.name).build.without?(dep))
+            # end
             reqs = f.requirements.reject do |req|
               ignores.any? { |ignore| req.send(ignore) } && includes.none? { |include| req.send(include) }
             end
@@ -198,9 +204,19 @@ module BrewRmtree
     uses.map(&:full_name)
   end
 
+  def deps_for_formula(f)
+    # https://github.com/Homebrew/brew/blob/d1b83819deacd99b55c9d400149dc9b49fa795df/Library/Homebrew/cmd/deps.rb#L137
+    includes, ignores = Homebrew.argv_includes_ignores(["--installed"])
+
+    deps = f.runtime_dependencies
+    reqs = Homebrew.reject_ignores(f.requirements, ignores, includes)
+
+    deps + reqs.to_a
+  end
+
   # Gather complete list of packages used by root package
   def dependency_tree(keg_name, recursive=true)
-    Homebrew.deps_for_formula(as_formula(keg_name), recursive
+    deps_for_formula(as_formula(keg_name)
       ).map{ |x| as_formula(x) }
       .reject{ |x| x.nil? }
       .select(&:installed?
