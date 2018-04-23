@@ -233,11 +233,10 @@ module BrewRmtree
     latest_formula = Formulary.factory(name)
     active_version = latest_formula.linked_version
     active_prefix = latest_formula.installed_prefixes.last
-    active_formula = Formulary.factory("#{active_prefix}/.brew/#{name}.rb")
-    if active_formula.nil?
+    begin
+      return Formulary.factory("#{active_prefix}/.brew/#{name}.rb")
+    rescue
       return latest_formula
-    else
-      return active_formula
     end
   end
 
