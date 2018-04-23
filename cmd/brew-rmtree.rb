@@ -37,6 +37,7 @@
 
 require 'keg'
 require 'formula'
+require 'formulary'
 require 'shellwords'
 require 'set'
 require 'cmd/deps'
@@ -111,7 +112,7 @@ module BrewRmtree
     end
 
     # Remove old versions of keg
-    puts bash "brew cleanup #{keg_name}"
+    puts bash "brew cleanup #{keg_name} 2>/dev/null"
 
     # Remove current keg
     puts bash "brew uninstall #{keg_name}"
@@ -125,7 +126,7 @@ module BrewRmtree
 
   # A list of kegs that use keg_name, using homebrew code instead of shell cmd
   def uses(keg_name, recursive=true, ignores=[])
-    # https://github.com/Homebrew/homebrew/blob/master/Library/Homebrew/cmd/uses.rb
+    # https://raw.githubusercontent.com/Homebrew/brew/master/Library/Homebrew/cmd/uses.rb
     formulae = [Formulary.factory(keg_name)]
     uses = Formula.installed.select do |f|
       formulae.all? do |ff|
@@ -203,7 +204,7 @@ module BrewRmtree
       ).map{ |x| as_formula(x) }
       .reject{ |x| x.nil? }
       .select(&:installed?
-      )#.sort_by(&:name)
+      )
   end
 
   # Returns a set of dependencies as their keg name
@@ -214,16 +215,30 @@ module BrewRmtree
   # Return a formula for keg_name
   def as_formula(keg_name)
     if keg_name.is_a? Dependency
-      return Formulary.factory(keg_name.name)
+      return find_active_formula(keg_name.name)
     end
     if keg_name.is_a? Requirement
       begin
-        return Formulary.factory(keg_name.to_dependency.name)
+        return find_active_formula(keg_name.to_dependency.name)
       rescue
         return nil
       end
     end
-    return Formulary.factory(keg_name)
+    return find_active_formula(keg_name)
+  end
+
+  # Given a formula name, find the formula for the active version.
+  # Default formulae are for the latest version which may not be installed causing issue #28.
+  def find_active_formula(name)
+    latest_formula = Formulary.factory(name)
+    active_version = latest_formula.linked_version
+    active_prefix = latest_formula.installed_prefixes.last
+    active_formula = Formulary.factory("#{active_prefix}/.brew/#{name}.rb")
+    if active_formula.nil?
+      return latest_formula
+    else
+      return active_formula
+    end
   end
 
   def used_by(dep_name, del_formula)
