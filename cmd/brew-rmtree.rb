@@ -33,7 +33,7 @@
 #:    Force the removal of <formula> even if other formulae depend on it.
 #:
 #:    `brew rmtree` <formula> --ignore <formula2>
-#:    Remove <formula>, but don't remove it's dependency of <formula2>
+#:    Remove <formula>, but don't remove its dependency of <formula2>
 
 require 'keg'
 require 'formula'
