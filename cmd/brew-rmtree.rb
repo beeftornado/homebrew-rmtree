@@ -1,5 +1,5 @@
 #:
-#:  * `rmtree` [`--force`] [`--dry-run`] [`--quiet`] formula1 [formula2] [formula3]... [`--ignore` formulaX]
+#:  * `rmtree` [`--force`] [`--dry-run`] [`--quiet`] [`--ignore=`formulaX,formulaY] formula1 [formula2] [formula3]...
 #:
 #:    Remove a formula entirely, including all of its dependencies,
 #:    unless of course, they are used by another formula.
@@ -15,8 +15,7 @@
 #:    option will let you remove 'ruby'. This will NOT bypass dependency checks for the
 #:    formula's children. If 'ruby' depends on 'git', then 'git' will still not be removed.
 #:
-#:    With `--ignore`, you can ignore some dependencies from being removed. This option
-#:    must come after the formulae to remove.
+#:    With `--ignore`, you can ignore some dependencies from being removed.
 #:
 #:    You can use `--dry-run` to see what would be removed without actually removing
 #:    anything.
@@ -32,7 +31,7 @@
 #:    `brew rmtree` --force <formula>
 #:    Force the removal of <formula> even if other formulae depend on it.
 #:
-#:    `brew rmtree` <formula> --ignore <formula2>
+#:    `brew rmtree` --ignore=<formula2> <formula>
 #:    Remove <formula>, but don't remove its dependency of <formula2>
 
 require 'keg'
@@ -42,6 +41,7 @@ require 'dependencies'
 require 'shellwords'
 require 'set'
 require 'cmd/deps'
+require 'cli/parser'
 
 # I am not a ruby-ist and so my style may offend some
 
@@ -494,27 +494,45 @@ module BrewRmtree
     kegs_to_delete_in_order.each { |d| remove_keg(d, @dry_run) }
   end
 
-  def main
-    force = false
-    ignored_kegs = []
-    rm_kegs = []
-    quiet = false
+  def rmtree_args
+    Homebrew::CLI::Parser.new do
+      usage_banner <<~EOS
+      `rmtree` [<options>] [<formula>]
 
-    if ARGV.size < 1 or ['-h', '?', '--help'].include? ARGV.first
-      abort `brew rmtree --help`
+      Remove a formula entirely, including all of its dependencies, unless of course, 
+      they are used by another formula.
+         
+      Warning:
+        Not all formulae declare their dependencies and therefore this command may end
+        up removing something you still need. It should be used with caution.
+      EOS
+      switch "--quiet",
+             description: "Hide output."
+      switch "--dry-run",
+             description: "See what would be removed without actually removing anything."
+      switch "--force",
+             description: "Force the removal of <formula> even if other formulae depend on it. " +
+             "You can override the dependency check for the top-level formula you " +
+             "are trying to remove. \nFor example, if you try to remove 'ruby', you most likely will " +
+             "not be able to do this because other fomulae specify this as a dependency. This " +
+             "option will enable you to remove 'ruby'. This will NOT bypass dependency checks for the " +
+             "formula's children. If 'ruby' depends on 'git', then 'git' will still not be removed. Sorry."
+      comma_array "--ignore=",
+             description: "Ignore some dependencies from being removed. Specify multiple values separated by a comma."
     end
+  end
+
+  def main
+    rmtree_args.parse
+
+    force = Homebrew.args.force?
+    ignored_kegs = []
+    ignored_kegs.push(*Homebrew.args.ignore)
+    rm_kegs = Homebrew.args.named
+    quiet = Homebrew.args.quiet?
+    @dry_run = Homebrew.args.dry_run?
 
     raise KegUnspecifiedError if Homebrew.args.no_named?
-
-    loop { case ARGV[0]
-        when '--quiet' then ARGV.shift; quiet = true
-        when '--dry-run' then ARGV.shift; @dry_run = true
-        when '--force' then  ARGV.shift; force = true
-        when '--ignore' then  ARGV.shift; ignored_kegs.push(*ARGV); break
-        when /^-/ then  onoe "Unknown option: #{ARGV.shift.inspect}"; abort `brew rmtree --help`
-        when /^[^-]/ then rm_kegs.push(ARGV.shift)
-        else break
-    end; }
 
     # Turn off output if 'quiet' is specified
     if quiet
