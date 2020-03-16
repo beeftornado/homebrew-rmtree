@@ -504,7 +504,7 @@ module BrewRmtree
       abort `brew rmtree --help`
     end
 
-    raise KegUnspecifiedError if ARGV.named.empty?
+    raise KegUnspecifiedError if Homebrew.args.no_named?
 
     loop { case ARGV[0]
         when '--quiet' then ARGV.shift; quiet = true
