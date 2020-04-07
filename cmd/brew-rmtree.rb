@@ -1,5 +1,5 @@
 #:
-#:  * `rmtree` [`--force`] [`--dry-run`] [`--quiet`] [`--ignore=`formulaX,formulaY] formula1 [formula2] [formula3]...
+#:  * `rmtree` [`--force`] [`-n`|`--dry-run`] [`--quiet`] [`--ignore=`formulaX,formulaY] formula1 [formula2] [formula3]...
 #:
 #:    Remove a formula entirely, including all of its dependencies,
 #:    unless of course, they are used by another formula.
@@ -17,7 +17,7 @@
 #:
 #:    With `--ignore`, you can ignore some dependencies from being removed.
 #:
-#:    You can use `--dry-run` to see what would be removed without actually removing
+#:    You can use `--dry-run` (alias `-n`) to see what would be removed without actually removing
 #:    anything.
 #:
 #:    `--quiet` will hide output.
@@ -508,7 +508,7 @@ module BrewRmtree
       EOS
       switch "--quiet",
              description: "Hide output."
-      switch "--dry-run",
+      switch "-n", "--dry-run",
              description: "See what would be removed without actually removing anything."
       switch "--force",
              description: "Force the removal of <formula> even if other formulae depend on it. " +
