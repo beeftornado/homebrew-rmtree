@@ -17,8 +17,8 @@
 #:
 #:    With `--ignore`, you can ignore some dependencies from being removed.
 #:
-#:    You can use `--dry-run` (alias `-n`) to see what would be removed without actually removing
-#:    anything.
+#:    You can use `--dry-run` (alias `-n`) to see what would be removed without
+#:    actually removing anything.
 #:
 #:    `--quiet` will hide output.
 #:
