@@ -68,7 +68,7 @@ Uninstalling /usr/local/Cellar/lua/5.2.4... (81 files, 1.1M)
 
 Uninstalling /usr/local/Cellar/mpg123/1.22.2... (16 files, 656K)
 ```
-    
+
 Trying to remove something required by something else
 
 ```
@@ -84,7 +84,8 @@ Want to see what will happen without making any changes?
 ```
 $ brew rmtree --dry-run mpv
 This is a dry-run, nothing will be deleted
-Examining installed formulae required by mpv...43 / 43 
+==> Examining installed formulae required by mpv...
+ -  43 / 43
 
 Can safely be removed
 ----------------------
