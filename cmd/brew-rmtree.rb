@@ -219,7 +219,7 @@ module BrewRmtree
     deps_for_formula(as_formula(keg_name)
       ).map{ |x| as_formula(x) }
       .reject{ |x| x.nil? }
-      .select(&:installed?
+      .select(&:any_version_installed?
       )
   end
 
@@ -439,7 +439,7 @@ module BrewRmtree
     end
 
     # Check if the formula is installed (outdated implies installed)
-    unless as_formula(keg_name).installed? || as_formula(keg_name).outdated?
+    unless as_formula(keg_name).any_version_installed? || as_formula(keg_name).outdated?
       onoe "#{keg_name} is not currently installed"
       return
     end
