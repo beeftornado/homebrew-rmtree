@@ -126,7 +126,7 @@ module BrewRmtree
   end
 
   # A list of kegs that use keg_name, using homebrew code instead of shell cmd
-  def uses(keg_name, recursive=true, ignores=[])
+  def uses(keg_name, recursive=true, ignores=[], args:)
     # https://raw.githubusercontent.com/Homebrew/brew/master/Library/Homebrew/cmd/uses.rb
     formulae = [Formulary.factory(keg_name)]
     uses = Formula.installed.select do |f|
@@ -173,7 +173,7 @@ module BrewRmtree
 
             reqs = reqs_by_formula.map(&:last)
           else
-            includes, ignores = Homebrew.argv_includes_ignores(["--installed"])
+            includes, ignores = Homebrew.args_includes_ignores(args)
             deps = f.deps.reject do |dep|
               ignores.any? { |ignore| dep.send(ignore) } && includes.none? { |include| dep.send(include) }
             end
@@ -204,9 +204,9 @@ module BrewRmtree
     uses.map(&:full_name)
   end
 
-  def deps_for_formula(f)
+  def deps_for_formula(f, args:)
     # https://github.com/Homebrew/brew/blob/d1b83819deacd99b55c9d400149dc9b49fa795df/Library/Homebrew/cmd/deps.rb#L137
-    includes, ignores = Homebrew.argv_includes_ignores(["--installed"])
+    includes, ignores = Homebrew.args_includes_ignores(args)
 
     deps = f.runtime_dependencies
     reqs = Homebrew.reject_ignores(f.requirements, ignores, includes)
@@ -215,8 +215,8 @@ module BrewRmtree
   end
 
   # Gather complete list of packages used by root package
-  def dependency_tree(keg_name, recursive=true)
-    deps_for_formula(as_formula(keg_name)
+  def dependency_tree(keg_name, recursive=true, args:)
+    deps_for_formula(as_formula(keg_name), args: args
       ).map{ |x| as_formula(x) }
       .reject{ |x| x.nil? }
       .select(&:any_version_installed?
@@ -224,8 +224,8 @@ module BrewRmtree
   end
 
   # Returns a set of dependencies as their keg name
-  def dependency_tree_as_keg_names(keg_name, recursive=true)
-    @dependency_table[keg_name] ||= dependency_tree(keg_name, recursive).map!(&:name)
+  def dependency_tree_as_keg_names(keg_name, recursive=true, args:)
+    @dependency_table[keg_name] ||= dependency_tree(keg_name, recursive, args: args).map!(&:name)
   end
 
   # Return a formula for keg_name
@@ -256,16 +256,16 @@ module BrewRmtree
     end
   end
 
-  def used_by(dep_name, del_formula)
-    @used_by_table[dep_name] ||= uses(dep_name, false).to_set.delete(del_formula.full_name)
+  def used_by(dep_name, del_formula, args:)
+    @used_by_table[dep_name] ||= uses(dep_name, false, args: args).to_set.delete(del_formula.full_name)
   end
 
   # Return list of installed formula that will still use this dependency
   # after deletion and thus cannot be removed.
-  def still_used_by(dep_name, del_formula, full_dep_list)
+  def still_used_by(dep_name, del_formula, full_dep_list, args:)
     # List of formulae that use this keg and aren't in the tree
     # of dependencies to be removed
-    return used_by(dep_name, del_formula).subtract(full_dep_list)
+    return used_by(dep_name, del_formula, args: args).subtract(full_dep_list)
   end
 
   def cant_remove(dep_set)
@@ -328,31 +328,31 @@ module BrewRmtree
   end
 
   # Will mark any children and parents of dep as unremovable if dep is unremovable
-  def revisit_neighbors(of_dependency, del_formula, dep_set, wont_remove_because)
+  def revisit_neighbors(of_dependency, del_formula, dep_set, wont_remove_because, args:)
     # Prevent subsequent related formula from being flagged for removal
     dep_set.delete(of_dependency)
 
     # Update users of the dependency
-    used_by(of_dependency, del_formula).each do |user_of_d|
+    used_by(of_dependency, del_formula, args: args).each do |user_of_d|
       # Only update those we visited and think we can remove
       if wont_remove_because.has_key? user_of_d and can_remove(wont_remove_because[user_of_d])
         wont_remove_because[user_of_d] << of_dependency
-        revisit_neighbors(user_of_d, del_formula, dep_set, wont_remove_because)
+        revisit_neighbors(user_of_d, del_formula, dep_set, wont_remove_because, args: args)
       end
     end
 
     # Update dependencies of the dependency
-    dependency_tree_as_keg_names(of_dependency, false).each do |d|
+    dependency_tree_as_keg_names(of_dependency, false, args: args).each do |d|
       # Only update those we visited and think we can remove
       if wont_remove_because.has_key? d and can_remove(wont_remove_because[d])
         wont_remove_because[d] << of_dependency
-        revisit_neighbors(d, del_formula, dep_set, wont_remove_because)
+        revisit_neighbors(d, del_formula, dep_set, wont_remove_because, args: args)
       end
     end
   end
 
   # Walk the tree and decide which ones are safe to remove
-  def build_tree(keg_name, ignored_kegs=[])
+  def build_tree(keg_name, ignored_kegs=[], args: )
     # List used to save the status of all dependency packages
     wont_remove_because = {}
 
@@ -363,7 +363,7 @@ module BrewRmtree
       f = as_formula(keg_name)
 
       # Get the complete list of dependencies and convert it to just keg names
-      dep_arr = dependency_tree_as_keg_names(keg_name)
+      dep_arr = dependency_tree_as_keg_names(keg_name, args: args)
       dep_set = dep_arr.to_set
 
       # For each possible dependency that we want to remove, check if anything
@@ -376,7 +376,7 @@ module BrewRmtree
 
         # Save the list of formulae that use this keg and aren't in the tree
         # of dependencies to be removed
-        wont_remove_because[dep] = still_used_by(dep, f, dep_set)
+        wont_remove_because[dep] = still_used_by(dep, f, dep_set, args: args)
 
         # Allow user to keep dependencies that aren't used anymore by saying
         # something phony uses it
@@ -390,7 +390,7 @@ module BrewRmtree
         # because at the time they didn't have this new information
         if cant_remove(wont_remove_because[dep])
           # This dependency can't be removed. Users and dependencies need to be reconsidered.
-          revisit_neighbors(dep, f, dep_set, wont_remove_because)
+          revisit_neighbors(dep, f, dep_set, wont_remove_because, args: args)
         end
 
         set_spinner_progress "  #{wont_remove_because.size} / #{dep_arr.length} "
@@ -400,7 +400,7 @@ module BrewRmtree
     return wont_remove_because
   end
 
-  def order_to_be_removed_v2(start_from, wont_remove_because)
+  def order_to_be_removed_v2(start_from, wont_remove_because, args:)
     # Maintain stuff we delete
     deleted_formulae = [start_from]
 
@@ -414,7 +414,7 @@ module BrewRmtree
     while maybe_dependencies_to_delete.size != last_size
       last_size = maybe_dependencies_to_delete.size
       maybe_dependencies_to_delete.each do |dep|
-        _used_by = uses(dep, false).to_set.subtract(deleted_formulae.to_set)
+        _used_by = uses(dep, false, args: args).to_set.subtract(deleted_formulae.to_set)
         # puts "Deleted formulae are #{deleted_formulae.inspect()}"
         # puts "#{dep} is used by #{_used_by.inspect()}"
         if _used_by.size == 0
@@ -427,10 +427,10 @@ module BrewRmtree
     return deleted_formulae, maybe_dependencies_to_delete
   end
 
-  def rmtree(keg_name, force=false, ignored_kegs=[])
+  def rmtree(keg_name, force=false, ignored_kegs=[], args:)
     # Does anything use keg such that we can't remove it?
     if !force
-      keg_used_by = uses(keg_name, false)
+      keg_used_by = uses(keg_name, false, args: args)
       if !keg_used_by.empty?
         puts "#{keg_name} can't be removed because other formula depend on it:"
         puts keg_used_by.join(", ")
@@ -445,9 +445,10 @@ module BrewRmtree
     end
 
     # Dependency list of what can be removed, and what can't, and why
-    wont_remove_because = build_tree(keg_name, ignored_kegs)
+    wont_remove_because = build_tree(keg_name, ignored_kegs, args: args)
 
-    kegs_to_delete_in_order, maybe_dependencies_to_delete = order_to_be_removed_v2(keg_name, wont_remove_because)
+    kegs_to_delete_in_order, maybe_dependencies_to_delete = order_to_be_removed_v2(keg_name, wont_remove_because, 
+    args: args)
 
     # Dry run print out more information on what will happen
     if @dry_run
@@ -463,7 +464,7 @@ module BrewRmtree
       describe_build_tree_wont_remove(wont_remove_because)
       if @dry_run
         maybe_dependencies_to_delete.each do |dep|
-          _used_by = uses(dep, false).to_set.subtract(kegs_to_delete_in_order)
+          _used_by = uses(dep, false, args: args).to_set.subtract(kegs_to_delete_in_order)
           puts "#{dep} is used by #{_used_by.to_a.join(', ')}"
         end
       end
@@ -523,16 +524,16 @@ module BrewRmtree
   end
 
   def main
-    rmtree_args.parse
+    args = rmtree_args.parse
 
-    force = Homebrew.args.force?
+    force = args.force?
     ignored_kegs = []
-    ignored_kegs.push(*Homebrew.args.ignore)
-    rm_kegs = Homebrew.args.named
-    quiet = Homebrew.args.quiet?
-    @dry_run = Homebrew.args.dry_run?
+    ignored_kegs.push(*args.ignore)
+    rm_kegs = args.named
+    quiet = args.quiet?
+    @dry_run = args.dry_run?
 
-    raise KegUnspecifiedError if Homebrew.args.no_named?
+    raise KegUnspecifiedError if args.no_named?
 
     # Turn off output if 'quiet' is specified
     if quiet
@@ -546,7 +547,7 @@ module BrewRmtree
     # Convert ignored kegs into full names
     ignored_kegs.map! { |k| as_formula(k).full_name }
 
-    rm_kegs.each { |keg_name| rmtree keg_name, force, ignored_kegs }
+    rm_kegs.each { |keg_name| rmtree keg_name, force, ignored_kegs, args: args }
   end
 end
 
