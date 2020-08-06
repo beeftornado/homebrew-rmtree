@@ -484,7 +484,7 @@ module BrewRmtree
         puts k
       end
 
-      should_proceed_or_quit("Proceed?")
+      should_proceed_or_quit("Proceed?") unless args.yes?
 
       ohai "Cleaning up packages safe to remove"
     end
@@ -509,6 +509,8 @@ module BrewRmtree
       EOS
       switch "--quiet",
              description: "Hide output."
+      switch "-y", "--yes",
+             description: "Remove without confirmation."
       switch "-n", "--dry-run",
              description: "See what would be removed without actually removing anything."
       switch "--force",
