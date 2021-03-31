@@ -41,6 +41,7 @@ require 'dependencies'
 require 'shellwords'
 require 'set'
 require 'cmd/deps'
+require 'cmd/uses'
 require 'cli/parser'
 
 # I am not a ruby-ist and so my style may offend some
@@ -173,7 +174,7 @@ module BrewRmtree
 
             reqs = reqs_by_formula.map(&:last)
           else
-            includes, ignores = Homebrew.args_includes_ignores(args)
+            includes, ignores = Homebrew.args_includes_ignores(Homebrew.uses_args.parse)
             deps = f.deps.reject do |dep|
               ignores.any? { |ignore| dep.send(ignore) } && includes.none? { |include| dep.send(include) }
             end
@@ -206,7 +207,7 @@ module BrewRmtree
 
   def deps_for_formula(f, args:)
     # https://github.com/Homebrew/brew/blob/d1b83819deacd99b55c9d400149dc9b49fa795df/Library/Homebrew/cmd/deps.rb#L137
-    includes, ignores = Homebrew.args_includes_ignores(args)
+    includes, ignores = Homebrew.args_includes_ignores(Homebrew.uses_args.parse)
 
     deps = f.runtime_dependencies
     reqs = Homebrew.reject_ignores(f.requirements, ignores, includes)
