@@ -40,6 +40,7 @@ require 'formulary'
 require 'dependencies'
 require 'shellwords'
 require 'set'
+require 'pathname'
 require 'cmd/deps'
 require 'cmd/uses'
 require 'cli/parser'
@@ -57,6 +58,19 @@ module BrewRmtree
   def bash(command)
     escaped_command = Shellwords.escape(command)
     return %x! bash -c #{escaped_command} !
+  end
+
+  # Find the path to the currently running version of homebrew
+  # Fixes #46
+  def brew_path()
+    brew_home = Pathname.new(ENV["HOMEBREW_PREFIX"])
+    if brew_home.directory?
+      brew_bin = brew_home / "bin/brew"
+      if brew_bin.executable?
+        return brew_bin.realpath
+      end
+    end
+    return "brew"
   end
 
   # replaces Kernel#puts w/ do-nothing method
@@ -114,16 +128,16 @@ module BrewRmtree
     end
 
     # Remove old versions of keg
-    puts bash "brew cleanup #{keg_name} 2>/dev/null"
+    puts bash "#{brew_path} cleanup #{keg_name} 2>/dev/null"
 
     # Remove current keg
-    puts bash "brew uninstall #{keg_name}"
+    puts bash "#{brew_path} uninstall #{keg_name}"
   end
 
   # A list of dependencies of keg_name that are still installed after removal
   # of the keg
   def orphaned_dependencies(keg_name)
-    bash("join <(sort <(brew leaves)) <(sort <(brew deps #{keg_name}))").split("\n")
+    bash("join <(sort <(#{brew_path} leaves)) <(sort <(#{brew_path} deps #{keg_name}))").split("\n")
   end
 
   # A list of kegs that use keg_name, using homebrew code instead of shell cmd
