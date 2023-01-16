@@ -67,7 +67,7 @@ module BrewRmtree
     if brew_home.directory?
       brew_bin = brew_home / "bin/brew"
       if brew_bin.executable?
-        return brew_bin.realpath
+        return brew_bin.to_s
       end
     end
     return "brew"
