@@ -224,7 +224,7 @@ module BrewRmtree
     includes, ignores = Homebrew.args_includes_ignores(Homebrew.uses_args.parse)
 
     deps = f.runtime_dependencies
-    reqs = Homebrew.reject_ignores(f.requirements, ignores, includes)
+    reqs = Homebrew.select_includes(f.requirements, ignores, includes)
 
     deps + reqs.to_a
   end
@@ -462,7 +462,7 @@ module BrewRmtree
     # Dependency list of what can be removed, and what can't, and why
     wont_remove_because = build_tree(keg_name, ignored_kegs, args: args)
 
-    kegs_to_delete_in_order, maybe_dependencies_to_delete = order_to_be_removed_v2(keg_name, wont_remove_because, 
+    kegs_to_delete_in_order, maybe_dependencies_to_delete = order_to_be_removed_v2(keg_name, wont_remove_because,
     args: args)
 
     # Dry run print out more information on what will happen
@@ -475,7 +475,7 @@ module BrewRmtree
       kegs_to_delete_in_order.each do |k|
         puts k
       end
-      
+
       describe_build_tree_wont_remove(wont_remove_because)
       if @dry_run
         maybe_dependencies_to_delete.each do |dep|
@@ -515,9 +515,9 @@ module BrewRmtree
       usage_banner <<~EOS
       `rmtree` [<options>] [<formula>]
 
-      Remove a formula entirely, including all of its dependencies, unless of course, 
+      Remove a formula entirely, including all of its dependencies, unless of course,
       they are used by another formula.
-         
+
       Warning:
         Not all formulae declare their dependencies and therefore this command may end
         up removing something you still need. It should be used with caution.
