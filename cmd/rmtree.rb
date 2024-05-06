@@ -1,39 +1,3 @@
-#:
-#:  * `rmtree` [`--force`] [`-n`|`--dry-run`] [`--quiet`] [`--ignore=`formulaX,formulaY] formula1 [formula2] [formula3]...
-#:
-#:    Remove a formula entirely, including all of its dependencies,
-#:    unless of course, they are used by another formula.
-#:
-#:    Warning:
-#:
-#:      Not all formulae declare their dependencies and therefore this command may end
-#:      up removing something you still need. It should be used with caution.
-#:
-#:    With `--force`, you can override the dependency check for the top-level formula you
-#:    are trying to remove. If you try to remove 'ruby' for example, you most likely will
-#:    not be able to do this because other fomulae specify this as a dependency. This
-#:    option will let you remove 'ruby'. This will NOT bypass dependency checks for the
-#:    formula's children. If 'ruby' depends on 'git', then 'git' will still not be removed.
-#:
-#:    With `--ignore`, you can ignore some dependencies from being removed.
-#:
-#:    You can use `--dry-run` (alias `-n`) to see what would be removed without
-#:    actually removing anything.
-#:
-#:    `--quiet` will hide output.
-#:
-#:    `brew rmtree` <formula>
-#:    Removes <formula> and its dependencies.
-#:
-#:    `brew rmtree` <formula> <formula2>
-#:    Removes <formula> and <formula2> and their dependencies.
-#:
-#:    `brew rmtree` --force <formula>
-#:    Force the removal of <formula> even if other formulae depend on it.
-#:
-#:    `brew rmtree` --ignore=<formula2> <formula>
-#:    Remove <formula>, but don't remove its dependency of <formula2>
-
 require 'keg'
 require 'formula'
 require 'formulary'
@@ -44,16 +8,77 @@ require 'pathname'
 require 'cmd/deps'
 require 'cmd/uses'
 require 'cli/parser'
+require 'abstract_command'
+require 'dependencies_helpers'
 
 # I am not a ruby-ist and so my style may offend some
 
-module BrewRmtree
+module Homebrew
+  module Cmd
+    class RmtreeCmd < AbstractCommand
+      cmd_args do
+        usage_banner "`rmtree` [<options>] <formula> [<formula2>]"
+        description <<~EOS
+        Remove a formula entirely, including all of its dependencies, unless of course, they are used by another formula.
 
-  @dry_run = false
-  @used_by_table = {}
-  @dependency_table = {}
+        Warning:
+          Not all formulae declare their dependencies and therefore this command may end up removing something you still need. It should be used with caution.
 
-  module_function
+          `brew rmtree` <formula>
+          Removes <formula> and its dependencies.
+
+          `brew rmtree` <formula> <formula2>
+          Removes <formula> and <formula2> and their dependencies.
+          
+          `brew rmtree` --force <formula>
+          Force the removal of <formula> even if other formulae depend on it.
+          
+          `brew rmtree` --ignore=<formula2> <formula>
+          Remove <formula>, but don't remove its dependency of <formula2>
+        EOS
+        switch "--quiet",
+              description: "Hide output."
+        switch "-n", "--dry-run",
+              description: "See what would be removed without actually removing anything."
+        switch "--force",
+              description: "Force the removal of <formula> even if other formulae depend on it. " +
+              "You can override the dependency check for the top-level formula you " +
+              "are trying to remove. \nFor example, if you try to remove 'ruby', you most likely will " +
+              "not be able to do this because other fomulae specify this as a dependency. This " +
+              "option will enable you to remove 'ruby'. This will NOT bypass dependency checks for the " +
+              "formula's children. If 'ruby' depends on 'git', then 'git' will still not be removed. Sorry."
+        comma_array "--ignore=",
+              description: "Ignore some dependencies from being removed. Specify multiple values separated by a comma."
+        switch "--include-build",
+              hidden: true,
+              description: "Include `:build` dependencies for <formula>."
+        switch "--include-test",
+              hidden: true,
+              description: "Include `:test` dependencies for <formula> (non-recursive)."
+        switch "--include-optional",
+              hidden: true,
+              description: "Include `:optional` dependencies for <formula>."
+        switch "--skip-recommended",
+              hidden: true,
+              description: "Skip `:recommended` dependencies for <formula>."
+        switch "--missing",
+              hidden: true,
+              description: "Show only missing dependencies."
+      end
+
+      def run   
+        BrewRmtree.new.run(args)
+      end
+    end
+  end
+end
+
+class BrewRmtree
+  include DependenciesHelpers
+
+  @@dry_run = false
+  @@used_by_table = {}
+  @@dependency_table = {}
 
   def bash(command)
     escaped_command = Shellwords.escape(command)
@@ -188,7 +213,7 @@ module BrewRmtree
 
             reqs = reqs_by_formula.map(&:last)
           else
-            includes, ignores = Homebrew.args_includes_ignores(Homebrew.uses_args.parse)
+            includes, ignores = args_includes_ignores(args)
             deps = f.deps.reject do |dep|
               ignores.any? { |ignore| dep.send(ignore) } && includes.none? { |include| dep.send(include) }
             end
@@ -221,10 +246,10 @@ module BrewRmtree
 
   def deps_for_formula(f, args:)
     # https://github.com/Homebrew/brew/blob/d1b83819deacd99b55c9d400149dc9b49fa795df/Library/Homebrew/cmd/deps.rb#L137
-    includes, ignores = Homebrew.args_includes_ignores(Homebrew.uses_args.parse)
+    includes, ignores = args_includes_ignores(args)
 
     deps = f.runtime_dependencies
-    reqs = Homebrew.select_includes(f.requirements, ignores, includes)
+    reqs = select_includes(f.requirements, ignores, includes)
 
     deps + reqs.to_a
   end
@@ -240,7 +265,7 @@ module BrewRmtree
 
   # Returns a set of dependencies as their keg name
   def dependency_tree_as_keg_names(keg_name, recursive=true, args:)
-    @dependency_table[keg_name] ||= dependency_tree(keg_name, recursive, args: args).map!(&:name)
+    @@dependency_table[keg_name] ||= dependency_tree(keg_name, recursive, args: args).map!(&:name)
   end
 
   # Return a formula for keg_name
@@ -272,7 +297,7 @@ module BrewRmtree
   end
 
   def used_by(dep_name, del_formula, args:)
-    @used_by_table[dep_name] ||= uses(dep_name, false, args: args).to_set.delete(del_formula.full_name)
+    @@used_by_table[dep_name] ||= uses(dep_name, false, args: args).to_set.delete(del_formula.full_name)
   end
 
   # Return list of installed formula that will still use this dependency
@@ -466,7 +491,7 @@ module BrewRmtree
     args: args)
 
     # Dry run print out more information on what will happen
-    if @dry_run
+    if @@dry_run
       # describe_build_tree(wont_remove_because)
 
       puts ""
@@ -477,7 +502,7 @@ module BrewRmtree
       end
 
       describe_build_tree_wont_remove(wont_remove_because)
-      if @dry_run
+      if @@dry_run
         maybe_dependencies_to_delete.each do |dep|
           _used_by = uses(dep, false, args: args).to_set.subtract(kegs_to_delete_in_order)
           puts "#{dep} is used by #{_used_by.to_a.join(', ')}"
@@ -505,48 +530,18 @@ module BrewRmtree
     end
 
     # Remove packages
-    # remove_keg(keg_name, @dry_run)
-    #removable_in_tree(wont_remove_because).map { |d,_| remove_keg(d, @dry_run) }
-    kegs_to_delete_in_order.each { |d| remove_keg(d, @dry_run) }
+    # remove_keg(keg_name, @@dry_run)
+    #removable_in_tree(wont_remove_because).map { |d,_| remove_keg(d, @@dry_run) }
+    kegs_to_delete_in_order.each { |d| remove_keg(d, @@dry_run) }
   end
 
-  def rmtree_args
-    Homebrew::CLI::Parser.new do
-      usage_banner <<~EOS
-      `rmtree` [<options>] [<formula>]
-
-      Remove a formula entirely, including all of its dependencies, unless of course,
-      they are used by another formula.
-
-      Warning:
-        Not all formulae declare their dependencies and therefore this command may end
-        up removing something you still need. It should be used with caution.
-      EOS
-      switch "--quiet",
-             description: "Hide output."
-      switch "-n", "--dry-run",
-             description: "See what would be removed without actually removing anything."
-      switch "--force",
-             description: "Force the removal of <formula> even if other formulae depend on it. " +
-             "You can override the dependency check for the top-level formula you " +
-             "are trying to remove. \nFor example, if you try to remove 'ruby', you most likely will " +
-             "not be able to do this because other fomulae specify this as a dependency. This " +
-             "option will enable you to remove 'ruby'. This will NOT bypass dependency checks for the " +
-             "formula's children. If 'ruby' depends on 'git', then 'git' will still not be removed. Sorry."
-      comma_array "--ignore=",
-             description: "Ignore some dependencies from being removed. Specify multiple values separated by a comma."
-    end
-  end
-
-  def main
-    args = rmtree_args.parse
-
+  def run(args)
     force = args.force?
     ignored_kegs = []
     ignored_kegs.push(*args.ignore)
     rm_kegs = args.named
     quiet = args.quiet?
-    @dry_run = args.dry_run?
+    @@dry_run = args.dry_run?
 
     raise KegUnspecifiedError if args.no_named?
 
@@ -555,7 +550,7 @@ module BrewRmtree
       puts_off
     end
 
-    if @dry_run
+    if @@dry_run
       puts "This is a dry-run, nothing will be deleted"
     end
 
@@ -565,6 +560,3 @@ module BrewRmtree
     rm_kegs.each { |keg_name| rmtree keg_name, force, ignored_kegs, args: args }
   end
 end
-
-BrewRmtree.main
-exit 0
