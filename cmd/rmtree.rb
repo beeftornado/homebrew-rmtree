@@ -49,6 +49,9 @@ module Homebrew
               "formula's children. If 'ruby' depends on 'git', then 'git' will still not be removed. Sorry."
         comma_array "--ignore=",
               description: "Ignore some dependencies from being removed. Specify multiple values separated by a comma."
+        switch "--include-implicit",
+               hidden: true,
+               description: "Include `:implicit` dependencies for <formula>."
         switch "--include-build",
               hidden: true,
               description: "Include `:build` dependencies for <formula>."
