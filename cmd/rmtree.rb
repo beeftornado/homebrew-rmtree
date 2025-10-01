@@ -10,6 +10,7 @@ require 'cmd/uses'
 require 'cli/parser'
 require 'abstract_command'
 require 'dependencies_helpers'
+require "utils/output"
 
 # I am not a ruby-ist and so my style may offend some
 
@@ -29,10 +30,10 @@ module Homebrew
 
           `brew rmtree` <formula> <formula2>
           Removes <formula> and <formula2> and their dependencies.
-          
+
           `brew rmtree` --force <formula>
           Force the removal of <formula> even if other formulae depend on it.
-          
+
           `brew rmtree` --ignore=<formula2> <formula>
           Remove <formula>, but don't remove its dependency of <formula2>
         EOS
@@ -69,7 +70,7 @@ module Homebrew
               description: "Show only missing dependencies."
       end
 
-      def run   
+      def run
         BrewRmtree.new.run(args)
       end
     end
@@ -78,6 +79,7 @@ end
 
 class BrewRmtree
   include DependenciesHelpers
+  include Utils::Output::Mixin
 
   @@dry_run = false
   @@used_by_table = {}
